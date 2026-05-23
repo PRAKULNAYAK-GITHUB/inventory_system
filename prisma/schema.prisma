@@ -1,0 +1,107 @@
+// Allo Inventory Reservation System — Prisma Schema
+// Manages products, warehouses, stock levels, and concurrency-safe reservations.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  sku         String   @unique
+  description String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockLevels  StockLevel[]
+  reservations Reservation[]
+
+  @@map("products")
+}
+
+// ─── Warehouses ──────────────────────────────────────────────────────────────
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String
+  location  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockLevels  StockLevel[]
+  reservations Reservation[]
+
+  @@map("warehouses")
+}
+
+// ─── Stock Levels (per product per warehouse) ────────────────────────────────
+
+model StockLevel {
+  id            String   @id @default(cuid())
+  productId     String
+  warehouseId   String
+  totalUnits    Int      @default(0)
+  reservedUnits Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, warehouseId])
+  @@map("stock_levels")
+}
+
+// ─── Reservation Status ──────────────────────────────────────────────────────
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  RELEASED
+}
+
+// ─── Reservations ────────────────────────────────────────────────────────────
+
+model Reservation {
+  id              String            @id @default(cuid())
+  productId       String
+  warehouseId     String
+  quantity        Int
+  status          ReservationStatus @default(PENDING)
+  expiresAt       DateTime
+  idempotencyKey  String?           @unique
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@index([productId, warehouseId])
+  @@map("reservations")
+}
+
+// ─── Idempotency Records (Postgres-backed, no Redis) ─────────────────────────
+
+model IdempotencyRecord {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  method     String
+  path       String
+  statusCode Int
+  body       String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
