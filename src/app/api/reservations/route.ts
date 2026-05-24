@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { ReserveRequestSchema } from "@/lib/schemas";
 import { checkIdempotency, storeIdempotency } from "@/lib/idempotency";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@prisma/client";
 
 const RESERVATION_TTL_MINUTES = 10;
 
