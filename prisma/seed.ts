@@ -74,6 +74,36 @@ const productSeed = [
     description:
       "Compact USB-C docking station with HDMI, Ethernet, SD, and power delivery.",
   },
+  {
+    name: "Smart Voice Assistant Hub",
+    sku: "SPK-SMART-HUB",
+    description:
+      "Premium smart speaker with voice control assistant, high-fidelity sound, and local smart home hub capabilities.",
+  },
+  {
+    name: "Wireless Gaming Mouse Pro",
+    sku: "MOUSE-GAMING-PRO",
+    description:
+      "Ultra-lightweight wireless gaming mouse with sub-millisecond response time and 25k DPI optical sensor.",
+  },
+  {
+    name: "4K Laser UST Projector",
+    sku: "PROJ-4K-UST",
+    description:
+      "Ultra short throw smart laser projector with 4K UHD resolution, cinematic color, and built-in speakers.",
+  },
+  {
+    name: "True Wireless ANC Earbuds",
+    sku: "EAR-TWS-PRO",
+    description:
+      "Premium wireless earbuds with adaptive active noise cancellation, personalized sound profiles, and 30-hour battery life.",
+  },
+  {
+    name: "Interactive Fitness Mirror",
+    sku: "FIT-MIRROR-4K",
+    description:
+      "High-end smart home gym mirror with hidden 43-inch 4K touchscreen display, embedded cameras, and stereo sound.",
+  },
 ];
 
 const stockMatrix = [
@@ -87,6 +117,11 @@ const stockMatrix = [
   [7, 4, 6, 2, 5],
   [24, 17, 18, 9, 13],
   [14, 9, 11, 4, 6],
+  [15, 22, 18, 10, 14], // Smart Voice Assistant Hub
+  [30, 25, 40, 15, 20], // Wireless Gaming Mouse Pro
+  [3, 2, 4, 1, 2],       // 4K Laser UST Projector (Highly exclusive, perfect for concurrency/low stock test)
+  [50, 45, 60, 30, 40], // True Wireless ANC Earbuds
+  [2, 1, 3, 1, 2],       // Interactive Fitness Mirror (Highly exclusive, perfect for concurrency/low stock test)
 ];
 
 async function main() {
