@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import type { ProductWithStock } from "@/lib/schemas";
 
 interface Warehouse {
@@ -191,9 +192,8 @@ function WarehousesPageContent() {
                   <h3 style={{ fontSize: "0.78rem", fontWeight: "800", textTransform: "uppercase", color: "var(--text-secondary)", letterSpacing: "0.5px", width: "100%" }}>Stocked Products</h3>
                   <div 
                     style={{ 
-                      display: "flex", 
-                      flexDirection: "row", 
-                      flexWrap: "wrap", 
+                      display: "grid", 
+                      gridTemplateColumns: "repeat(5, minmax(0, 1fr))", 
                       gap: "10px", 
                       width: "100%" 
                     }}
@@ -202,9 +202,11 @@ function WarehousesPageContent() {
                       const stock = p.stockLevels.find(s => s.warehouse.id === warehouse.id);
                       if (!stock || stock.totalUnits <= 0) return null;
                       return { product: p, stock };
-                    }).filter((item): item is { product: ProductWithStock; stock: any } => item !== null).map(({ product, stock }) => (
-                      <div 
+                    }).filter((item): item is { product: ProductWithStock; stock: ProductWithStock["stockLevels"][number] } => item !== null).map(({ product, stock }) => (
+                      <Link 
                         key={product.id} 
+                        href={`/products?search=${encodeURIComponent(product.sku)}`}
+                        className="warehouse-product-card-link"
                         style={{ 
                           display: "flex", 
                           alignItems: "center", 
@@ -214,19 +216,22 @@ function WarehousesPageContent() {
                           background: "var(--bg-elevated)", 
                           borderRadius: "var(--radius-sm)", 
                           border: "1px solid var(--border-color)",
-                          cursor: "default",
-                          flex: "1 1 200px",
-                          minWidth: "200px"
+                          cursor: "pointer",
+                          textDecoration: "none",
+                          color: "inherit",
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                          width: "100%",
+                          minWidth: 0
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
                           <img 
                             src={product.imageUrl || productImages[product.sku] || "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=120&q=80"} 
                             alt="" 
-                            style={{ width: "36px", height: "36px", borderRadius: "8px", objectFit: "cover" }} 
+                            style={{ width: "36px", height: "36px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }} 
                           />
-                          <div style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                          <div style={{ display: "grid", gap: "2px", minWidth: 0, flex: 1 }}>
                             <strong style={{ fontSize: "0.82rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>{product.name}</strong>
                             <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>{product.sku}</span>
                           </div>
@@ -235,8 +240,14 @@ function WarehousesPageContent() {
                           <span style={{ fontSize: "0.76rem", color: "var(--text-secondary)", textAlign: "right" }}>
                             <strong style={{ color: "var(--text-primary)", marginRight: "4px" }}>{stock.availableUnits}</strong>available
                           </span>
+                          <span className="arrow-indicator">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                              <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                          </span>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                   {products.filter(p => p.stockLevels.some(s => s.warehouse.id === warehouse.id && s.totalUnits > 0)).length === 0 && (
