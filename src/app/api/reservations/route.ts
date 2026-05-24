@@ -6,6 +6,39 @@ import { Prisma } from "@/generated/prisma/client";
 
 const RESERVATION_TTL_MINUTES = 10;
 
+export async function GET() {
+  try {
+    const reservations = await prisma.reservation.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      include: {
+        product: { select: { id: true, name: true, sku: true } },
+        warehouse: { select: { id: true, name: true, location: true } },
+      },
+    });
+
+    return NextResponse.json(
+      reservations.map((reservation) => ({
+        id: reservation.id,
+        productId: reservation.productId,
+        warehouseId: reservation.warehouseId,
+        quantity: reservation.quantity,
+        status: reservation.status,
+        expiresAt: reservation.expiresAt.toISOString(),
+        createdAt: reservation.createdAt.toISOString(),
+        product: reservation.product,
+        warehouse: reservation.warehouse,
+      }))
+    );
+  } catch (error) {
+    console.error("Error listing reservations:", error);
+    return NextResponse.json(
+      { error: "Failed to list reservations" },
+      { status: 500 }
+    );
+  }
+}
+
 /**
  * POST /api/reservations
  *

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useCallback, useEffect, useMemo, useState, use } from "react";
+import Link from "next/link";
 import type { ReservationResponse } from "@/lib/schemas";
 
 interface Toast {
@@ -9,103 +10,79 @@ interface Toast {
   message: string;
 }
 
-function CountdownTimer({
+const productImages: Record<string, string> = {
+  "WH-1000XM5":
+    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80",
+  "KB-MK870-BLK":
+    "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=900&q=80",
+  "MON-UW34-QHD":
+    "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=900&q=80",
+  "CH-ERGO-PRO":
+    "https://images.unsplash.com/photo-1580480055273-228ff5388ef8?auto=format&fit=crop&w=900&q=80",
+  "SSD-PORT-2TB":
+    "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=900&q=80",
+};
+
+function getProductImage(sku: string) {
+  return productImages[sku] || productImages["SSD-PORT-2TB"];
+}
+
+function getSecondsLeft(expiresAt: string) {
+  return Math.max(
+    0,
+    Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)
+  );
+}
+
+function HoldTimer({
   expiresAt,
   onExpired,
 }: {
   expiresAt: string;
   onExpired: () => void;
 }) {
-  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [secondsLeft, setSecondsLeft] = useState(() => getSecondsLeft(expiresAt));
 
   useEffect(() => {
-    const calcTimeLeft = () => {
-      const diff = new Date(expiresAt).getTime() - Date.now();
-      return Math.max(0, Math.floor(diff / 1000));
-    };
+    const intervalId = window.setInterval(() => {
+      const nextSeconds = getSecondsLeft(expiresAt);
+      setSecondsLeft(nextSeconds);
 
-    setTimeLeft(calcTimeLeft());
-
-    const interval = setInterval(() => {
-      const remaining = calcTimeLeft();
-      setTimeLeft(remaining);
-      if (remaining <= 0) {
-        clearInterval(interval);
+      if (nextSeconds === 0) {
+        window.clearInterval(intervalId);
         onExpired();
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(intervalId);
   }, [expiresAt, onExpired]);
 
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const isUrgent = timeLeft <= 60;
-  const isWarning = timeLeft <= 180 && timeLeft > 60;
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = secondsLeft % 60;
+  const progress = Math.max(0, Math.min(100, (secondsLeft / 600) * 100));
+  const tone =
+    secondsLeft <= 60 ? "danger" : secondsLeft <= 180 ? "warning" : "active";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "8px",
-      }}
-    >
+    <section className={`checkout-timer timer-${tone}`}>
       <div
-        className="countdown"
+        className="timer-ring"
         style={{
-          fontSize: "3rem",
-          fontWeight: "800",
-          letterSpacing: "-0.02em",
-          color: isUrgent
-            ? "var(--accent-danger)"
-            : isWarning
-              ? "var(--accent-warning)"
-              : "var(--accent-primary)",
-          transition: "color 0.3s ease",
+          background: `conic-gradient(var(--timer-color) ${progress}%, #e8edf6 0)`,
         }}
       >
-        {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
+        <div>
+          <strong className="countdown">
+            {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
+          </strong>
+          <span>{secondsLeft === 0 ? "Expired" : "Hold remaining"}</span>
+        </div>
       </div>
-      <div
-        style={{
-          fontSize: "0.75rem",
-          color: "var(--text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          fontWeight: "600",
-        }}
-      >
-        {isUrgent ? "⚠ Expiring soon!" : "Time remaining"}
-      </div>
-
-      {/* Progress bar */}
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "240px",
-          height: "4px",
-          borderRadius: "2px",
-          background: "var(--bg-secondary)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            width: `${(timeLeft / 600) * 100}%`,
-            borderRadius: "2px",
-            background: isUrgent
-              ? "var(--gradient-danger)"
-              : isWarning
-                ? "var(--accent-warning)"
-                : "var(--gradient-primary)",
-            transition: "width 1s linear, background 0.3s ease",
-          }}
-        />
-      </div>
-    </div>
+      <p>
+        This reservation temporarily increments reserved stock. Confirm purchase
+        to permanently decrement stock, or cancel to release the hold.
+      </p>
+    </section>
   );
 }
 
@@ -115,9 +92,7 @@ export default function CheckoutPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const [reservation, setReservation] = useState<ReservationResponse | null>(
-    null
-  );
+  const [reservation, setReservation] = useState<ReservationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
@@ -128,8 +103,8 @@ export default function CheckoutPage({
     (type: "error" | "success" | "info", message: string) => {
       const toastId = Date.now();
       setToasts((prev) => [...prev, { id: toastId, type, message }]);
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== toastId));
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((toast) => toast.id !== toastId));
       }, 5000);
     },
     []
@@ -137,14 +112,12 @@ export default function CheckoutPage({
 
   const fetchReservation = useCallback(async () => {
     try {
-      const res = await fetch(`/api/reservations/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch reservation");
-      const data = await res.json();
-      setReservation(data);
+      const response = await fetch(`/api/reservations/${id}`);
+      if (!response.ok) throw new Error("Failed to fetch reservation");
 
-      if (data.status === "RELEASED") {
-        setExpired(true);
-      }
+      const data = await response.json();
+      setReservation(data);
+      setExpired(data.status === "RELEASED");
     } catch {
       addToast("error", "Failed to load reservation details.");
     } finally {
@@ -153,39 +126,44 @@ export default function CheckoutPage({
   }, [id, addToast]);
 
   useEffect(() => {
-    fetchReservation();
+    const timeoutId = window.setTimeout(() => {
+      void fetchReservation();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [fetchReservation]);
 
   const handleConfirm = async () => {
     setConfirming(true);
+
     try {
-      const res = await fetch(`/api/reservations/${id}/confirm`, {
+      const response = await fetch(`/api/reservations/${id}/confirm`, {
         method: "POST",
       });
 
-      if (res.status === 410) {
+      if (response.status === 410) {
         addToast(
           "error",
-          "⏰ Reservation expired — the hold window has closed. Please create a new reservation."
+          "Reservation expired. Create a fresh reservation before confirming."
         );
         setExpired(true);
         await fetchReservation();
         return;
       }
 
-      if (res.status === 409) {
-        const data = await res.json();
-        addToast("error", `⚠️ ${data.error}`);
+      if (response.status === 409) {
+        const data = await response.json();
+        addToast("error", data.error || "Reservation cannot be confirmed.");
+        await fetchReservation();
         return;
       }
 
-      if (!res.ok) throw new Error("Confirm failed");
+      if (!response.ok) throw new Error("Confirm failed");
 
-      const data = await res.json();
-      setReservation(data);
-      addToast("success", "✓ Payment confirmed! Your order is complete.");
+      setReservation(await response.json());
+      addToast("success", "Purchase confirmed. Stock was permanently decremented.");
     } catch {
-      addToast("error", "Failed to confirm payment. Please try again.");
+      addToast("error", "Failed to confirm purchase. Please try again.");
     } finally {
       setConfirming(false);
     }
@@ -193,23 +171,24 @@ export default function CheckoutPage({
 
   const handleRelease = async () => {
     setReleasing(true);
+
     try {
-      const res = await fetch(`/api/reservations/${id}/release`, {
+      const response = await fetch(`/api/reservations/${id}/release`, {
         method: "POST",
       });
 
-      if (res.status === 409) {
-        const data = await res.json();
-        addToast("error", `⚠️ ${data.error}`);
+      if (response.status === 409) {
+        const data = await response.json();
+        addToast("error", data.error || "Reservation cannot be released.");
         await fetchReservation();
         return;
       }
 
-      if (!res.ok) throw new Error("Release failed");
+      if (!response.ok) throw new Error("Release failed");
 
-      const data = await res.json();
-      setReservation(data);
-      addToast("info", "Reservation cancelled. Units returned to inventory.");
+      setReservation(await response.json());
+      setExpired(true);
+      addToast("info", "Reservation cancelled. Units returned to available stock.");
     } catch {
       addToast("error", "Failed to cancel reservation. Please try again.");
     } finally {
@@ -219,68 +198,43 @@ export default function CheckoutPage({
 
   const handleExpired = useCallback(() => {
     setExpired(true);
-    addToast(
-      "error",
-      "⏰ Reservation expired — the hold window has closed."
-    );
+    addToast("error", "Reservation expired. The held units can now be released.");
   }, [addToast]);
+
+  const status = useMemo(() => {
+    if (!reservation) return "loading";
+    if (reservation.status === "CONFIRMED") return "confirmed";
+    if (reservation.status === "RELEASED" || expired) return "released";
+    return "pending";
+  }, [reservation, expired]);
 
   if (loading) {
     return (
-      <div
-        style={{
-          maxWidth: "600px",
-          margin: "0 auto",
-        }}
-      >
-        <div
-          className="skeleton"
-          style={{
-            height: "400px",
-            borderRadius: "var(--radius-lg)",
-          }}
-        />
+      <div className="checkout-shell">
+        <div className="skeleton checkout-loading" />
       </div>
     );
   }
 
   if (!reservation) {
     return (
-      <div
-        style={{
-          maxWidth: "600px",
-          margin: "0 auto",
-          textAlign: "center",
-          padding: "80px 20px",
-        }}
-      >
-        <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🔍</div>
-        <h2
-          style={{
-            fontSize: "1.3rem",
-            fontWeight: "700",
-            marginBottom: "8px",
-          }}
-        >
-          Reservation not found
-        </h2>
-        <p style={{ color: "var(--text-secondary)", marginBottom: "24px" }}>
-          This reservation may have been removed or the ID is invalid.
-        </p>
-        <a href="/" className="btn-primary" style={{ textDecoration: "none" }}>
-          Back to Products
-        </a>
-      </div>
+      <section className="empty-state">
+        <span>404</span>
+        <h1>Reservation not found</h1>
+        <p>This hold may have been removed or the reservation ID is invalid.</p>
+        <Link href="/" className="btn-primary">
+          Back to dashboard
+        </Link>
+      </section>
     );
   }
 
-  const isPending = reservation.status === "PENDING" && !expired;
-  const isConfirmed = reservation.status === "CONFIRMED";
-  const isReleased = reservation.status === "RELEASED" || expired;
+  const isPending = status === "pending";
+  const isConfirmed = status === "confirmed";
+  const isReleased = status === "released";
 
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-      {/* ─── Toasts ──────────────────────────────────────────────────── */}
+    <div className="checkout-shell">
       <div className="toast-container">
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast toast-${toast.type}`}>
@@ -289,318 +243,153 @@ export default function CheckoutPage({
         ))}
       </div>
 
-      {/* ─── Header ──────────────────────────────────────────────────── */}
-      <div
-        className="animate-fade-in-up"
-        style={{ marginBottom: "24px" }}
-      >
-        <a
-          href="/"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            color: "var(--text-secondary)",
-            fontSize: "0.85rem",
-            textDecoration: "none",
-            marginBottom: "16px",
-          }}
-        >
-          ← Back to Products
-        </a>
-        <h1
-          style={{
-            fontSize: "1.8rem",
-            fontWeight: "800",
-            letterSpacing: "-0.03em",
-            background: "linear-gradient(135deg, #f0f0f5 0%, #a0a0b8 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          Checkout
-        </h1>
-      </div>
+      <section className="checkout-hero">
+        <div>
+          <Link href="/" className="back-link">
+            Back to inventory
+          </Link>
+          <p className="eyebrow">Checkout hold</p>
+          <h1>{reservation.product.name}</h1>
+          <p>
+            Reservation {reservation.id.slice(-8).toUpperCase()} is holding
+            inventory from {reservation.warehouse.name}.
+          </p>
+        </div>
+        <span className={`status-pill status-${status}`}>
+          {isPending && "Pending payment"}
+          {isConfirmed && "Confirmed"}
+          {isReleased && "Released"}
+        </span>
+      </section>
 
-      {/* ─── Status Card ─────────────────────────────────────────────── */}
-      <div
-        className="glass-card animate-fade-in-up"
-        style={{
-          padding: "32px",
-          marginBottom: "20px",
-          animationDelay: "0.1s",
-          opacity: 0,
-          textAlign: "center",
-        }}
-      >
-        {/* Status badge */}
-        <div style={{ marginBottom: "20px" }}>
+      <div className="checkout-grid">
+        <section className="checkout-card order-card">
+          <img
+            src={getProductImage(reservation.product.sku)}
+            alt=""
+            className="checkout-product-image"
+          />
+          <div className="order-copy">
+            <span>{reservation.product.sku}</span>
+            <h2>{reservation.product.name}</h2>
+            <p>
+              {reservation.quantity} unit{reservation.quantity > 1 ? "s" : ""} reserved
+              from {reservation.warehouse.location}.
+            </p>
+          </div>
+
+          <div className="order-detail-grid">
+            <div>
+              <span>Warehouse</span>
+              <strong>{reservation.warehouse.name}</strong>
+            </div>
+            <div>
+              <span>Quantity</span>
+              <strong>{reservation.quantity}</strong>
+            </div>
+            <div>
+              <span>Reservation ID</span>
+              <strong>{reservation.id.slice(-12)}</strong>
+            </div>
+            <div>
+              <span>Created</span>
+              <strong>
+                {new Date(reservation.createdAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <aside className="checkout-card action-card">
           {isPending && (
-            <span className="badge badge-warning">⏳ Pending Payment</span>
+            <HoldTimer expiresAt={reservation.expiresAt} onExpired={handleExpired} />
           )}
+
           {isConfirmed && (
-            <span className="badge badge-success">✓ Confirmed</span>
+            <div className="final-state success-state">
+              <span>Confirmed</span>
+              <h2>Payment captured</h2>
+              <p>
+                The reservation is confirmed and stock has been permanently
+                decremented from the selected warehouse.
+              </p>
+            </div>
           )}
+
           {isReleased && (
-            <span className="badge badge-danger">✕ Released</span>
+            <div className="final-state release-state">
+              <span>Released</span>
+              <h2>Hold no longer active</h2>
+              <p>
+                The reserved units were returned to available stock. Create a new
+                reservation if the customer retries checkout.
+              </p>
+            </div>
           )}
-        </div>
 
-        {/* Countdown for pending */}
-        {isPending && (
-          <div style={{ marginBottom: "24px" }}>
-            <CountdownTimer
-              expiresAt={reservation.expiresAt}
-              onExpired={handleExpired}
-            />
-          </div>
-        )}
-
-        {/* Confirmed state */}
-        {isConfirmed && (
-          <div style={{ marginBottom: "24px" }}>
-            <div
-              style={{
-                fontSize: "3rem",
-                marginBottom: "12px",
-              }}
-            >
-              🎉
+          <div className="status-timeline">
+            <div className="timeline-step complete">
+              <span />
+              <div>
+                <strong>Inventory reserved</strong>
+                <p>Reserved units increased atomically.</p>
+              </div>
+            </div>
+            <div className={`timeline-step ${isPending ? "active" : "complete"}`}>
+              <span />
+              <div>
+                <strong>Await payment</strong>
+                <p>Customer has a 10 minute checkout window.</p>
+              </div>
             </div>
             <div
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "700",
-                color: "var(--accent-success)",
-                marginBottom: "8px",
-              }}
+              className={`timeline-step ${
+                isConfirmed ? "complete" : isReleased ? "released" : ""
+              }`}
             >
-              Payment Confirmed!
+              <span />
+              <div>
+                <strong>{isReleased ? "Released" : "Confirm or release"}</strong>
+                <p>
+                  {isConfirmed
+                    ? "Stock sold successfully."
+                    : isReleased
+                      ? "Hold returned to inventory."
+                      : "Choose the payment outcome."}
+                </p>
+              </div>
             </div>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.9rem",
-              }}
-            >
-              Your order has been processed. Stock has been permanently
-              deducted.
-            </p>
           </div>
-        )}
 
-        {/* Released / expired state */}
-        {isReleased && (
-          <div style={{ marginBottom: "24px" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "12px" }}>⏰</div>
-            <div
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "700",
-                color: "var(--accent-danger)",
-                marginBottom: "8px",
-              }}
-            >
-              Reservation Released
+          {isPending && (
+            <div className="checkout-actions">
+              <button
+                className="btn-danger"
+                onClick={handleRelease}
+                disabled={releasing || confirming}
+              >
+                {releasing ? "Cancelling..." : "Cancel hold"}
+              </button>
+              <button
+                className="btn-success"
+                onClick={handleConfirm}
+                disabled={confirming || releasing}
+              >
+                {confirming ? "Confirming..." : "Confirm purchase"}
+              </button>
             </div>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.9rem",
-              }}
-            >
-              The units have been returned to inventory and are available
-              for other customers.
-            </p>
-          </div>
-        )}
+          )}
+
+          {!isPending && (
+            <Link href="/" className="btn-primary checkout-return">
+              Return to dashboard
+            </Link>
+          )}
+        </aside>
       </div>
-
-      {/* ─── Reservation Details ──────────────────────────────────────── */}
-      <div
-        className="glass-card animate-fade-in-up"
-        style={{
-          padding: "24px",
-          marginBottom: "20px",
-          animationDelay: "0.2s",
-          opacity: 0,
-        }}
-      >
-        <h3
-          style={{
-            fontSize: "0.75rem",
-            fontWeight: "600",
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: "16px",
-          }}
-        >
-          Reservation Details
-        </h3>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginBottom: "4px",
-              }}
-            >
-              Product
-            </div>
-            <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>
-              {reservation.product.name}
-            </div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginTop: "2px",
-              }}
-            >
-              SKU: {reservation.product.sku}
-            </div>
-          </div>
-
-          <div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginBottom: "4px",
-              }}
-            >
-              Warehouse
-            </div>
-            <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>
-              {reservation.warehouse.name}
-            </div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginTop: "2px",
-              }}
-            >
-              {reservation.warehouse.location}
-            </div>
-          </div>
-
-          <div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginBottom: "4px",
-              }}
-            >
-              Quantity
-            </div>
-            <div style={{ fontWeight: "700", fontSize: "1.3rem" }}>
-              {reservation.quantity}
-            </div>
-          </div>
-
-          <div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginBottom: "4px",
-              }}
-            >
-              Reservation ID
-            </div>
-            <div
-              style={{
-                fontWeight: "500",
-                fontSize: "0.8rem",
-                fontFamily: "monospace",
-                color: "var(--text-secondary)",
-                wordBreak: "break-all",
-              }}
-            >
-              {reservation.id}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Actions ──────────────────────────────────────────────────── */}
-      {isPending && (
-        <div
-          className="animate-fade-in-up"
-          style={{
-            display: "flex",
-            gap: "12px",
-            animationDelay: "0.3s",
-            opacity: 0,
-          }}
-        >
-          <button
-            className="btn-danger"
-            onClick={handleRelease}
-            disabled={releasing || confirming}
-            style={{ flex: 1, padding: "14px" }}
-          >
-            {releasing ? "Cancelling..." : "Cancel Reservation"}
-          </button>
-          <button
-            className="btn-success"
-            onClick={handleConfirm}
-            disabled={confirming || releasing}
-            style={{ flex: 2, padding: "14px", fontSize: "1rem" }}
-          >
-            {confirming ? (
-              <span style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
-                <span
-                  className="animate-spin"
-                  style={{
-                    width: "16px",
-                    height: "16px",
-                    border: "2px solid rgba(255,255,255,0.3)",
-                    borderTopColor: "white",
-                    borderRadius: "50%",
-                    display: "inline-block",
-                  }}
-                />
-                Processing Payment...
-              </span>
-            ) : (
-              "✓ Confirm Purchase"
-            )}
-          </button>
-        </div>
-      )}
-
-      {(isConfirmed || isReleased) && (
-        <div
-          className="animate-fade-in-up"
-          style={{ animationDelay: "0.3s", opacity: 0 }}
-        >
-          <a
-            href="/"
-            className="btn-primary"
-            style={{
-              display: "block",
-              textAlign: "center",
-              textDecoration: "none",
-              padding: "14px",
-              fontSize: "0.95rem",
-            }}
-          >
-            ← Browse More Products
-          </a>
-        </div>
-      )}
     </div>
   );
 }

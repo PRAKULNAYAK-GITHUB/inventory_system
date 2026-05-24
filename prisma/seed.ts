@@ -5,161 +5,205 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL as string }),
 });
 
-async function main() {
-  console.log("🌱 Seeding database...\n");
+const warehouseSeed = [
+  { name: "Mumbai Central", location: "Mumbai, Maharashtra" },
+  { name: "Delhi NCR Hub", location: "Gurugram, Haryana" },
+  { name: "Bangalore South", location: "Bangalore, Karnataka" },
+  { name: "Pune West", location: "Pune, Maharashtra" },
+  { name: "Hyderabad Fulfilment", location: "Hyderabad, Telangana" },
+];
 
-  // ─── Clean existing data ────────────────────────────────────────────
+const productSeed = [
+  {
+    name: "Wireless Noise-Cancelling Headphones",
+    sku: "WH-1000XM5",
+    description:
+      "Premium over-ear headphones with noise cancellation, long battery life, and multipoint connection.",
+  },
+  {
+    name: "Mechanical Keyboard RGB",
+    sku: "KB-MK870-BLK",
+    description:
+      "Hot-swappable mechanical keyboard with per-key RGB lighting and PBT keycaps.",
+  },
+  {
+    name: 'Ultra-Wide Curved Monitor 34"',
+    sku: "MON-UW34-QHD",
+    description:
+      "34-inch UWQHD curved monitor with fast refresh rate and USB-C connectivity.",
+  },
+  {
+    name: "Ergonomic Office Chair",
+    sku: "CH-ERGO-PRO",
+    description:
+      "Fully adjustable ergonomic chair with lumbar support and breathable mesh.",
+  },
+  {
+    name: "Portable SSD 2TB",
+    sku: "SSD-PORT-2TB",
+    description:
+      "Compact 2TB portable SSD with high-speed transfer and rugged enclosure.",
+  },
+  {
+    name: "Creator 4K Camera",
+    sku: "CAM-4K-PRO",
+    description:
+      "Mirrorless creator camera kit with 4K capture and stabilized lens bundle.",
+  },
+  {
+    name: "Air Tablet 11",
+    sku: "TABLET-AIR-11",
+    description:
+      "Lightweight 11-inch tablet with laminated display and all-day battery.",
+  },
+  {
+    name: "Fit LTE Smartwatch",
+    sku: "WATCH-FIT-LTE",
+    description:
+      "LTE smartwatch with health tracking, sport modes, and bright always-on display.",
+  },
+  {
+    name: "Travel Backpack Pro",
+    sku: "BAG-TRAVEL-PRO",
+    description:
+      "Weather-resistant travel backpack with laptop sleeve and modular compartments.",
+  },
+  {
+    name: "USB-C Dock 12-in-1",
+    sku: "DOCK-USBC-12",
+    description:
+      "Compact USB-C docking station with HDMI, Ethernet, SD, and power delivery.",
+  },
+];
+
+const stockMatrix = [
+  [25, 15, 30, 18, 22],
+  [40, 20, 35, 14, 26],
+  [5, 3, 8, 4, 6],
+  [50, 30, 45, 22, 35],
+  [2, 1, 3, 2, 4],
+  [11, 7, 9, 3, 6],
+  [18, 12, 16, 5, 8],
+  [7, 4, 6, 2, 5],
+  [24, 17, 18, 9, 13],
+  [14, 9, 11, 4, 6],
+];
+
+async function main() {
+  console.log("Seeding database...\n");
+
   await prisma.reservation.deleteMany();
   await prisma.stockLevel.deleteMany();
   await prisma.product.deleteMany();
   await prisma.warehouse.deleteMany();
   await prisma.idempotencyRecord.deleteMany();
 
-  console.log("  ✓ Cleared existing data");
+  console.log("  Cleared existing data");
 
-  // ─── Create Warehouses ──────────────────────────────────────────────
-  const warehouses = await Promise.all([
-    prisma.warehouse.create({
-      data: {
-        name: "Mumbai Central",
-        location: "Mumbai, Maharashtra",
-      },
-    }),
-    prisma.warehouse.create({
-      data: {
-        name: "Delhi NCR Hub",
-        location: "Gurugram, Haryana",
-      },
-    }),
-    prisma.warehouse.create({
-      data: {
-        name: "Bangalore South",
-        location: "Bangalore, Karnataka",
-      },
-    }),
-  ]);
+  const warehouses = await Promise.all(
+    warehouseSeed.map((warehouse) => prisma.warehouse.create({ data: warehouse }))
+  );
 
-  console.log(`  ✓ Created ${warehouses.length} warehouses`);
+  console.log(`  Created ${warehouses.length} warehouses`);
 
-  // ─── Create Products ────────────────────────────────────────────────
-  const products = await Promise.all([
-    prisma.product.create({
-      data: {
-        name: "Wireless Noise-Cancelling Headphones",
-        sku: "WH-1000XM5",
-        description:
-          "Premium over-ear headphones with industry-leading noise cancellation, 30-hour battery life, and multipoint connection.",
-        imageUrl: null,
-      },
-    }),
-    prisma.product.create({
-      data: {
-        name: "Mechanical Keyboard RGB",
-        sku: "KB-MK870-BLK",
-        description:
-          "Hot-swappable mechanical keyboard with per-key RGB lighting, PBT keycaps, and gasket-mounted design.",
-        imageUrl: null,
-      },
-    }),
-    prisma.product.create({
-      data: {
-        name: "Ultra-Wide Curved Monitor 34\"",
-        sku: "MON-UW34-QHD",
-        description:
-          "34-inch UWQHD curved monitor with 165Hz refresh rate, 1ms response time, and USB-C connectivity.",
-        imageUrl: null,
-      },
-    }),
-    prisma.product.create({
-      data: {
-        name: "Ergonomic Office Chair",
-        sku: "CH-ERGO-PRO",
-        description:
-          "Fully adjustable ergonomic chair with lumbar support, breathable mesh back, and 4D armrests.",
-        imageUrl: null,
-      },
-    }),
-    prisma.product.create({
-      data: {
-        name: "Portable SSD 2TB",
-        sku: "SSD-PORT-2TB",
-        description:
-          "Ultra-compact portable SSD with 2TB capacity, 2000MB/s read speed, and IP65 water resistance.",
-        imageUrl: null,
-      },
-    }),
-  ]);
+  const products = await Promise.all(
+    productSeed.map((product) =>
+      prisma.product.create({
+        data: {
+          ...product,
+          imageUrl: null,
+        },
+      })
+    )
+  );
 
-  console.log(`  ✓ Created ${products.length} products`);
+  console.log(`  Created ${products.length} products`);
 
-  // ─── Create Stock Levels ────────────────────────────────────────────
-  // Each product gets different stock levels per warehouse to make it realistic
-  const stockData = [
-    // Headphones — popular, varied stock
-    { product: products[0], warehouse: warehouses[0], total: 25 },
-    { product: products[0], warehouse: warehouses[1], total: 15 },
-    { product: products[0], warehouse: warehouses[2], total: 30 },
-
-    // Keyboard — moderate stock
-    { product: products[1], warehouse: warehouses[0], total: 40 },
-    { product: products[1], warehouse: warehouses[1], total: 20 },
-    { product: products[1], warehouse: warehouses[2], total: 35 },
-
-    // Monitor — limited stock (good for testing 409 scenarios)
-    { product: products[2], warehouse: warehouses[0], total: 5 },
-    { product: products[2], warehouse: warehouses[1], total: 3 },
-    { product: products[2], warehouse: warehouses[2], total: 8 },
-
-    // Chair — good stock
-    { product: products[3], warehouse: warehouses[0], total: 50 },
-    { product: products[3], warehouse: warehouses[1], total: 30 },
-    { product: products[3], warehouse: warehouses[2], total: 45 },
-
-    // SSD — very limited stock (perfect for concurrency testing)
-    { product: products[4], warehouse: warehouses[0], total: 2 },
-    { product: products[4], warehouse: warehouses[1], total: 1 },
-    { product: products[4], warehouse: warehouses[2], total: 3 },
-  ];
+  const stockData = products.flatMap((product, productIndex) =>
+    warehouses.map((warehouse, warehouseIndex) => ({
+      product,
+      warehouse,
+      total: stockMatrix[productIndex][warehouseIndex],
+    }))
+  );
 
   const stockLevels = await Promise.all(
-    stockData.map((s) =>
+    stockData.map((stock) =>
       prisma.stockLevel.create({
         data: {
-          productId: s.product.id,
-          warehouseId: s.warehouse.id,
-          totalUnits: s.total,
+          productId: stock.product.id,
+          warehouseId: stock.warehouse.id,
+          totalUnits: stock.total,
           reservedUnits: 0,
         },
       })
     )
   );
 
-  console.log(`  ✓ Created ${stockLevels.length} stock levels`);
+  console.log(`  Created ${stockLevels.length} stock levels`);
 
-  // ─── Summary ────────────────────────────────────────────────────────
-  console.log("\n📦 Seed complete! Summary:");
-  console.log("─".repeat(50));
+  const pendingReservations = [
+    { productIndex: 4, warehouseIndex: 1, quantity: 1, minutes: 9 },
+    { productIndex: 2, warehouseIndex: 0, quantity: 2, minutes: 7 },
+    { productIndex: 7, warehouseIndex: 3, quantity: 1, minutes: 5 },
+    { productIndex: 5, warehouseIndex: 3, quantity: 1, minutes: 4 },
+  ];
 
-  for (const product of products) {
-    const stocks = stockData.filter((s) => s.product.id === product.id);
-    const totalStock = stocks.reduce((sum, s) => sum + s.total, 0);
-    console.log(`  ${product.name} (${product.sku})`);
-    console.log(`    Total units across all warehouses: ${totalStock}`);
-    for (const s of stocks) {
-      console.log(`    • ${s.warehouse.name}: ${s.total} units`);
-    }
+  for (const reservation of pendingReservations) {
+    await prisma.$transaction([
+      prisma.reservation.create({
+        data: {
+          productId: products[reservation.productIndex].id,
+          warehouseId: warehouses[reservation.warehouseIndex].id,
+          quantity: reservation.quantity,
+          status: "PENDING",
+          expiresAt: new Date(Date.now() + reservation.minutes * 60 * 1000),
+        },
+      }),
+      prisma.stockLevel.update({
+        where: {
+          productId_warehouseId: {
+            productId: products[reservation.productIndex].id,
+            warehouseId: warehouses[reservation.warehouseIndex].id,
+          },
+        },
+        data: {
+          reservedUnits: { increment: reservation.quantity },
+        },
+      }),
+    ]);
   }
 
-  console.log("─".repeat(50));
-  console.log("\n✅ Database is ready for use!");
+  await prisma.reservation.create({
+    data: {
+      productId: products[0].id,
+      warehouseId: warehouses[0].id,
+      quantity: 1,
+      status: "CONFIRMED",
+      expiresAt: new Date(Date.now() + 8 * 60 * 1000),
+    },
+  });
+
+  await prisma.reservation.create({
+    data: {
+      productId: products[8].id,
+      warehouseId: warehouses[4].id,
+      quantity: 1,
+      status: "RELEASED",
+      expiresAt: new Date(Date.now() + 2 * 60 * 1000),
+    },
+  });
+
+  console.log("  Created 6 sample reservations");
+  console.log("\nSeed complete. Database is ready for use.");
 }
 
 main()
   .then(async () => {
     await prisma.$disconnect();
   })
-  .catch(async (e) => {
-    console.error("❌ Seed failed:", e);
+  .catch(async (error) => {
+    console.error("Seed failed:", error);
     await prisma.$disconnect();
     process.exit(1);
   });
